@@ -24,7 +24,7 @@ class MainHook : YukiHookXposedInitProxy {
 
                 val strongMode = prefs.get(DataConst.STRONG_MODE_DATA)
 
-                //Strong mode hook
+                // Strong mode hook - force MiuiSettings.Global.getBoolean("force_fsg_nav_bar") = true
                 if (strongMode) {
                     findClass("android.provider.MiuiSettings\$Global").hook {
                         injectMember {
@@ -38,6 +38,19 @@ class MainHook : YukiHookXposedInitProxy {
                                 }
                             }
                         }
+                    }
+                }
+
+                // Hook GestureNavigationSettingsObserver.areNavigationButtonForcedVisible()
+                // This is the key method that blocks side-back gesture for third-party launchers
+                // When it returns true, mIsBackGestureAllowed becomes false, disabling side gesture
+                findClass("com.android.internal.policy.GestureNavigationSettingsObserver").hook {
+                    injectMember {
+                        method {
+                            name = "areNavigationButtonForcedVisible"
+                            returnType = BooleanType
+                        }
+                        replaceToFalse()
                     }
                 }
             }
