@@ -82,16 +82,18 @@ class MainHook : YukiHookXposedInitProxy {
                             val handler = instance
                             val inputMonitor = XposedHelpers.getObjectField(handler, "mInputMonitor")
                             if (inputMonitor == null) {
-                                // :cond_55 - Register GestureNavigationSettingsObserver
+                                val loader = handler.javaClass.classLoader
+
+                                // Register GestureNavigationSettingsObserver
                                 val observer = XposedHelpers.getObjectField(handler, "mGestureNavigationSettingsObserver")
                                 XposedHelpers.callMethod(observer, "register")
 
-                                // :line 495 - Update display size
+                                // Update display size
                                 XposedHelpers.callMethod(handler, "updateDisplaySize")
 
-                                // :line 511 - Create InputMonitor via InputManager.monitorGestureInput("edge-swipe", displayId)
-                                val inputManagerClass = findClass("android.hardware.input.InputManager")
-                                val inputManager = XposedHelpers.callStaticMethod(inputManagerClass, "getInstance")
+                                // Create InputMonitor via InputManager.monitorGestureInput("edge-swipe", displayId)
+                                val inputManagerCls = XposedHelpers.findClass("android.hardware.input.InputManager", loader)
+                                val inputManager = XposedHelpers.callStaticMethod(inputManagerCls, "getInstance")
                                 val displayId = XposedHelpers.getIntField(handler, "mDisplayId")
                                 val newInputMonitor = XposedHelpers.callMethod(inputManager, "monitorGestureInput", "edge-swipe", displayId)
                                 XposedHelpers.setObjectField(handler, "mInputMonitor", newInputMonitor)
@@ -100,11 +102,11 @@ class MainHook : YukiHookXposedInitProxy {
                                 val context = XposedHelpers.getObjectField(handler, "mContext")
                                 val backAnimation = XposedHelpers.getObjectField(handler, "mBackAnimation")
                                 val latencyTracker = XposedHelpers.getObjectField(handler, "mLatencyTracker")
-                                val edgePanelClass = findClass("com.android.systemui.navigationbar.gestural.NavigationBarEdgePanel")
-                                val edgePanel = edgePanelClass.getConstructor(
-                                    findClass("android.content.Context"),
-                                    findClass("com.android.wm.shell.back.BackAnimation"),
-                                    findClass("com.android.internal.util.LatencyTracker")
+                                val edgePanelCls = XposedHelpers.findClass("com.android.systemui.navigationbar.gestural.NavigationBarEdgePanel", loader)
+                                val edgePanel = edgePanelCls.getConstructor(
+                                    XposedHelpers.findClass("android.content.Context", loader),
+                                    XposedHelpers.findClass("com.android.wm.shell.back.BackAnimation", loader),
+                                    XposedHelpers.findClass("com.android.internal.util.LatencyTracker", loader)
                                 ).newInstance(context, backAnimation, latencyTracker)
                                 XposedHelpers.callMethod(handler, "setEdgeBackPlugin", edgePanel)
 
