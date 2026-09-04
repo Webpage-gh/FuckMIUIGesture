@@ -5,6 +5,7 @@ import com.highcapable.yukihookapi.YukiHookAPI
 import com.highcapable.yukihookapi.annotation.xposed.InjectYukiHookWithXposed
 import com.highcapable.yukihookapi.hook.type.java.BooleanType
 import com.highcapable.yukihookapi.hook.xposed.proxy.YukiHookXposedInitProxy
+import de.robv.android.xposed.XposedHelpers
 
 
 @InjectYukiHookWithXposed(modulePackageName = "com.hcgstudio.miui.fuck.gesture")
@@ -41,9 +42,8 @@ class MainHook : YukiHookXposedInitProxy {
                     }
                 }
 
-                // Hook GestureNavigationSettingsObserver.areNavigationButtonForcedVisible()
-                // This is the key method that blocks side-back gesture for third-party launchers
-                // When it returns true, mIsBackGestureAllowed becomes false, disabling side gesture
+                // Hook areNavigationButtonForcedVisible() to return false
+                // This prevents MIUI from setting mIsBackGestureAllowed = false
                 findClass("com.android.internal.policy.GestureNavigationSettingsObserver").hook {
                     injectMember {
                         method {
@@ -51,6 +51,20 @@ class MainHook : YukiHookXposedInitProxy {
                             returnType = BooleanType
                         }
                         replaceToFalse()
+                    }
+                }
+
+                // Fix timing issue: hook updateCurrentUserResources() to force mIsBackGestureAllowed = true
+                // Because the hook above may be applied AFTER this method is called during SystemUI startup
+                findClass("com.android.systemui.navigationbar.gestural.EdgeBackGestureHandler").hook {
+                    injectMember {
+                        method {
+                            name = "updateCurrentUserResources"
+                        }
+                        afterHook {
+                            // Force mIsBackGestureAllowed = true after method execution
+                            XposedHelpers.setBooleanField(instance, "mIsBackGestureAllowed", true)
+                        }
                     }
                 }
             }
