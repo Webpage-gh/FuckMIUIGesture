@@ -67,6 +67,31 @@ class MainHook : YukiHookXposedInitProxy {
                         }
                     }
                 }
+
+                // CRITICAL FIX 1: Force miuiEnableGesture() = true
+                // This ensures updateIsEnabled() doesn't return early and registers InputMonitor
+                findClass("com.android.systemui.navigationbar.gestural.EdgeBackGestureHandler").hook {
+                    injectMember {
+                        method {
+                            name = "miuiEnableGesture"
+                            returnType = BooleanType
+                        }
+                        replaceToTrue()
+                    }
+                }
+
+                // CRITICAL FIX 2: Force mIsGesturalModeEnabled = true after onNavigationModeChanged
+                // Even if mode was never dispatched, ensure the field is set
+                findClass("com.android.systemui.navigationbar.gestural.EdgeBackGestureHandler").hook {
+                    injectMember {
+                        method {
+                            name = "onNavigationModeChanged"
+                        }
+                        afterHook {
+                            XposedHelpers.setBooleanField(instance, "mIsGesturalModeEnabled", true)
+                        }
+                    }
+                }
             }
 
             loadApp(name = "com.miui.home") {
