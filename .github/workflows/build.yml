@@ -1,16 +1,14 @@
-name: Build & Release
+name: Build
 
 on:
   push:
-    branches: [ main, master, feature/* ]
-  pull_request:
     branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
@@ -25,30 +23,11 @@ jobs:
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
-    - name: Build Debug APK
-      run: ./gradlew assembleDebug
-
     - name: Build Release APK
       run: ./gradlew assembleRelease
 
-    - name: Upload Debug APK
-      uses: actions/upload-artifact@v3
-      with:
-        name: debug-apk
-        path: app/build/outputs/apk/debug/*.apk
-
     - name: Upload Release APK
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
-        name: release-apk
+        name: FuckMIUIGesture-release
         path: app/build/outputs/apk/release/*.apk
-
-    - name: Create Release
-      if: startsWith(github.ref, 'refs/tags/')
-      uses: softprops/action-gh-release@v1
-      with:
-        files: |
-          app/build/outputs/apk/release/*.apk
-          app/build/outputs/apk/debug/*.apk
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
