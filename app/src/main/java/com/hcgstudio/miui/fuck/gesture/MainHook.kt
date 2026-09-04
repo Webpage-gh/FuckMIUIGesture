@@ -68,27 +68,49 @@ class MainHook : YukiHookXposedInitProxy {
                     }
                 }
 
-                // CRITICAL FIX 1: Force miuiEnableGesture() = true
-                // This ensures updateIsEnabled() doesn't return early and registers InputMonitor
+                // CRITICAL FIX: Register "edge-swipe" InputMonitor for third-party launchers.
+                // updateIsEnabled() dead path → mIsEnabled never true → return early →
+                // InputMonitor never registered → no side gesture events.
+                // Fix: afterHook on updateIsEnabled(), if mInputMonitor is null,
+                // manually execute the :cond_55 enable logic.
                 findClass("com.android.systemui.navigationbar.gestural.EdgeBackGestureHandler").hook {
                     injectMember {
                         method {
-                            name = "miuiEnableGesture"
-                            returnType = BooleanType
-                        }
-                        replaceToTrue()
-                    }
-                }
-
-                // CRITICAL FIX 2: Force mIsGesturalModeEnabled = true after onNavigationModeChanged
-                // Even if mode was never dispatched, ensure the field is set
-                findClass("com.android.systemui.navigationbar.gestural.EdgeBackGestureHandler").hook {
-                    injectMember {
-                        method {
-                            name = "onNavigationModeChanged"
+                            name = "updateIsEnabled"
                         }
                         afterHook {
-                            XposedHelpers.setBooleanField(instance, "mIsGesturalModeEnabled", true)
+                            val handler = instance
+                            val inputMonitor = XposedHelpers.getObjectField(handler, "mInputMonitor")
+                            if (inputMonitor == null) {
+                                // :cond_55 - Register GestureNavigationSettingsObserver
+                                val observer = XposedHelpers.getObjectField(handler, "mGestureNavigationSettingsObserver")
+                                XposedHelpers.callMethod(observer, "register")
+
+                                // :line 495 - Update display size
+                                XposedHelpers.callMethod(handler, "updateDisplaySize")
+
+                                // :line 511 - Create InputMonitor via InputManager.monitorGestureInput("edge-swipe", displayId)
+                                val inputManagerClass = findClass("android.hardware.input.InputManager")
+                                val inputManager = XposedHelpers.callStaticMethod(inputManagerClass, "getInstance")
+                                val displayId = XposedHelpers.getIntField(handler, "mDisplayId")
+                                val newInputMonitor = XposedHelpers.callMethod(inputManager, "monitorGestureInput", "edge-swipe", displayId)
+                                XposedHelpers.setObjectField(handler, "mInputMonitor", newInputMonitor)
+
+                                // Create NavigationBarEdgePanel and set as EdgeBackPlugin
+                                val context = XposedHelpers.getObjectField(handler, "mContext")
+                                val backAnimation = XposedHelpers.getObjectField(handler, "mBackAnimation")
+                                val latencyTracker = XposedHelpers.getObjectField(handler, "mLatencyTracker")
+                                val edgePanelClass = findClass("com.android.systemui.navigationbar.gestural.NavigationBarEdgePanel")
+                                val edgePanel = edgePanelClass.getConstructor(
+                                    findClass("android.content.Context"),
+                                    findClass("com.android.wm.shell.back.BackAnimation"),
+                                    findClass("com.android.internal.util.LatencyTracker")
+                                ).newInstance(context, backAnimation, latencyTracker)
+                                XposedHelpers.callMethod(handler, "setEdgeBackPlugin", edgePanel)
+
+                                // Set mIsEnabled = true
+                                XposedHelpers.setBooleanField(handler, "mIsEnabled", true)
+                            }
                         }
                     }
                 }
